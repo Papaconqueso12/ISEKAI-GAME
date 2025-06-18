@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de Supervivencia</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background-color: black;
+        }
+
+        #pauseMenu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border: 1px solid black;
+            display: none;
+        }
+
+        .health-bar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 200px;
+            height: 20px;
+            background-color: red;
+            border: 2px solid black;
+        }
+
+        .health-bar-inner {
+            height: 100%;
+            background-color: green;
+            width: 100%;
+        }
+
+        .game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: black;
+            color: white;
+            padding: 20px;
+            border: 2px solid red;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div class="health-bar">
+        <div class="health-bar-inner" id="playerHealth"></div>
+    </div>
+    <div id="pauseMenu">
+        <label for="playerColor">Color del Jugador:</label>
+        <input type="color" id="playerColor">
+        <label for="enemyColor">Color del Enemigo:</label>
+        <input type="color" id="enemyColor">
+        <button onclick="resumeGame()">Reanudar</button>
+    </div>
+    <div class="game-over" id="gameOver">
+        <h1>Has muerto</h1>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let player = { x: canvas.width / 2, y: canvas.height / 2, size: 20, color: localStorage.getItem('playerColor') || 'blue', health: 100, speed: 5 };
+        let enemies = [];
+        let playerBullets = [];
+        let enemyBullets = [];
+        let score = 0;
+        let gamePaused = false;
+        let enemyInterval = 3000; // 3 seconds
+        let lastEnemySpawnTime = 0;
+        const keys = {};
+
+        function spawnEnemy() {
+            let x, y;
+            do {
+                x = Math.random() * canvas.width;
+                y = Math.random() * canvas.height;
+            } while (Math.hypot(x - player.x, y - player.y) < 50); // Enemies can't spawn too close to the player
+            enemies.push({ x: x, y: y, size: 20, color: localStorage.getItem('enemyColor') || 'red', speed: 2 });
+        }
+
+        function updateGame() {
+            if (gamePaused) return;
+
+            // Move player based on WASD keys
+            if (keys['w'] && player.y > 0) player.y -= player.speed;
+            if (keys['s'] && player.y < canvas.height - player.size) player.y += player.speed;
+            if (keys['a'] && player.x > 0) player.x -= player.speed;
+            if (keys['d'] && player.x < canvas.width - player.size) player.x += player.speed;
+
+            // Move enemies toward the player
+            enemies.forEach(enemy => {
+                let angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                enemy.x += enemy.speed * Math.cos(angle);
+                enemy.y += enemy.speed * Math.sin(angle);
+            });
+
+            // Handle bullets
+            playerBullets.forEach((bullet, index) => {
+                bullet.x += bullet.speed * Math.cos(bullet.angle);
+                bullet.y += bullet.speed * Math.sin(bullet.angle);
+
+                // Check collision with enemies
+                enemies.forEach((enemy, enemyIndex) => {
+                    if (Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y) < enemy.size) {
+                        enemies.splice(enemyIndex, 1);
+                        playerBullets.splice(index, 1);
+                        score += 25;
+                    }
+                });
+
+                if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+                    playerBullets.splice(index, 1); // Remove off-screen bullets
+                }
+            });
+
+            enemyBullets.forEach((bullet, index) => {
+                bullet.x += bullet.speed * Math.cos(bullet.angle);
+                bullet.y += bullet.speed * Math.sin(bullet.angle);
+
+                // Check collision with player
+                if (Math.hypot(bullet.x - player.x, bullet.y - player.y) < player.size) {
+                    player.health -= 10;
+                    enemyBullets.splice(index, 1);
+
+                    if (player.health <= 0) {
+                        gameOver();
+                        return;
+                    }
+                }
+
+                if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+                    enemyBullets.splice(index, 1); // Remove off-screen bullets
+                }
+            });
+
+            document.getElementById('playerHealth').style.width = player.health + '%';
+
+            let currentTime = new Date().getTime();
+            if (currentTime - lastEnemySpawnTime > enemyInterval) {
+                spawnEnemy();
+                lastEnemySpawnTime = currentTime;
+            }
+
+            drawGame();
+            requestAnimationFrame(updateGame);
+        }
+
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.size, player.size);
+
+            enemies.forEach(enemy => {
+                ctx.fillStyle = enemy.color;
+                ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+            });
+
+            playerBullets.forEach(bullet => {
+                ctx.fillStyle = 'blue';
+                ctx.fillRect(bullet.x, bullet.y, 5, 5);
+            });
+
+            enemyBullets.forEach(bullet => {
+                ctx.fillStyle = 'red';
+                ctx.fillRect(bullet.x, bullet.y, 5, 5);
+            });
+
+            // Draw score, health, etc.
+        }
+
+        function togglePause() {
+            gamePaused = !gamePaused;
+            if (gamePaused) {
+                document.getElementById('pauseMenu').style.display = 'block';
+            } else {
+                resumeGame();
+            }
+        }
+
+        function resumeGame() {
+            gamePaused = false;
+            document.getElementById('pauseMenu').style.display = 'none';
+            updateGame();
+        }
+
+        function gameOver() {
+            gamePaused = true;
+            document.getElementById('gameOver').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('gameOver').style.display = 'none';
+                resetGame();
+                resumeGame();
+            }, 3000);
+        }
+
+        function resetGame() {
+            player = { x: canvas.width / 2, y: canvas.height / 2, size: 20, color: localStorage.getItem('playerColor') || 'blue', health: 100, speed: 5 };
+            enemies = [];
+            playerBullets = [];
+            enemyBullets = [];
+            score = 0;
+            gamePaused = false;
+        }
+
+        document.getElementById('playerColor').addEventListener('input', (e) => {
+            player.color = e.target.value;
+            localStorage.setItem('playerColor', player.color);
+        });
+
+        document.getElementById('enemyColor').addEventListener('input', (e) => {
+            enemies.forEach(enemy => {
+                enemy.color = e.target.value;
+            });
+            localStorage.setItem('enemyColor', e.target.value);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.code === 'Space') togglePause();
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        canvas.addEventListener('click', (e) => {
+            let angle = Math.atan2(e.clientY - player.y, e.clientX - player.x);
+            playerBullets.push({ x: player.x, y: player.y, angle: angle, speed: 7 });
+        });
+
+        setInterval(() => {
+            enemies.forEach(enemy => {
+                let angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                enemyBullets.push({ x: enemy.x, y: enemy.y, angle: angle, speed: 5 });
+            });
+        }, 1000);
+
+        updateGame();
+    </script>
+</body>
+</html>
