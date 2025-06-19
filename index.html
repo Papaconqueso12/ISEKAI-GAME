@@ -81,8 +81,13 @@
 </head>
 <body>
     <div class="menu">
-        <button onclick="mostrarJuego('ONE PIXEL SHOOT GAME', 'https://i.imgur.com/Yfwzi7X.png', 'OPSG.html')">ONE PIXEL SHOOT GAME</button>
-        <button onclick="mostrarJuego('PROXIMAMENTE', '', 'juego2.html')">PROXIMAMENTE</button>
+        <button 
+            onclick="mostrarJuego('ONE PIXEL SHOOT GAME', 'https://i.imgur.com/Yfwzi7X.png', 'OPSG.html')" 
+            ondblclick="abrirJuego('OPSG.html')">ONE PIXEL SHOOT GAME</button>
+        
+        <button 
+            onclick="mostrarJuego('PROXIMAMENTE', '', 'juego2.html')" 
+            ondblclick="abrirJuego('juego2.html')">PROXIMAMENTE</button>
     </div>
     <div class="contenido">
         <div class="imagen-container" id="imagenContainer">
@@ -98,11 +103,15 @@
             const botonJugar = document.getElementById('botonJugar');
 
             imagenJuego.src = imagenURL;
-            botonJugar.onclick = function() {
+            botonJugar.onclick = function () {
                 window.location.href = enlace;
             };
 
             imagenContainer.style.opacity = 1;
+        }
+
+        function abrirJuego(url) {
+            window.location.href = url;
         }
     </script>
 </body>
